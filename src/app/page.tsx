@@ -197,7 +197,7 @@ export default function Home() {
                       <span>{exp.participants.map(p => p.name).join(', ')} için</span>
                     </div>
                   </div>
-                  <button onClick={() => deleteExpense(exp.id)} className={styles.deleteBtn}>✕</button>
+                  <button onClick={() => deleteExpense(exp.id)} className={styles.deleteBtn} style={{ padding: '0.5rem 1rem', borderRadius: '8px', backgroundColor: '#fee2e2', color: '#ef4444', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Sil 🗑️</button>
                 </div>
               ))}
             </div>

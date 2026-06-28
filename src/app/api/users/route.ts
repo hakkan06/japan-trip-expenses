@@ -3,6 +3,10 @@ import prisma from '@/lib/prisma';
 
 export async function GET() {
   try {
+    // Rename existing ones if they exist (migration from old seed)
+    await prisma.user.updateMany({ where: { name: 'Ayşe' }, data: { name: 'Şükran' } });
+    await prisma.user.updateMany({ where: { name: 'Mehmet' }, data: { name: 'Can' } });
+
     let users = await prisma.user.findMany({
       orderBy: { name: 'asc' }
     });
@@ -13,8 +17,8 @@ export async function GET() {
         data: [
           { name: 'Ortak' },
           { name: 'Hakan' },
-          { name: 'Ayşe' },
-          { name: 'Mehmet' }
+          { name: 'Şükran' },
+          { name: 'Can' }
         ]
       });
       users = await prisma.user.findMany({
