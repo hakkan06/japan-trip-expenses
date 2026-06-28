@@ -64,8 +64,11 @@ export default function Home() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !amount || !paidById || !categoryId || participantIds.length === 0) return;
+    if (!title || !amount || !categoryId || participantIds.length === 0) return;
     setIsSubmitting(true);
+    
+    // Default to the first user since we don't care about "Kim Ödedi" anymore
+    const actualPaidById = paidById || (users.length > 0 ? users[0].id : '');
 
     try {
       const res = await fetch('/api/expenses', {
@@ -75,7 +78,7 @@ export default function Home() {
           title,
           amount,
           date,
-          paidById,
+          paidById: actualPaidById,
           categoryId,
           participantIds
         })
@@ -105,25 +108,8 @@ export default function Home() {
     );
   };
 
-  // Calculations for Summary
+  // Toplam Hesaplaması
   const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
-  
-  const balances: Record<string, number> = {};
-  users.forEach(u => balances[u.id] = 0);
-  
-  expenses.forEach(exp => {
-    // Person who paid gets positive balance
-    if (balances[exp.paidBy.id] !== undefined) {
-      balances[exp.paidBy.id] += exp.amount;
-    }
-    // Participants share the cost (negative balance)
-    const splitAmount = exp.amount / exp.participants.length;
-    exp.participants.forEach(p => {
-      if (balances[p.id] !== undefined) {
-        balances[p.id] -= splitAmount;
-      }
-    });
-  });
 
   if (loading) return <div className="container"><p>Yükleniyor...</p></div>;
 
@@ -145,8 +131,8 @@ export default function Home() {
               
               <div className={styles.row}>
                 <div style={{flex: 1}}>
-                  <label>Tutar (¥/₺)</label>
-                  <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} required />
+                  <label>Tutar (¥)</label>
+                  <input type="number" step="1" className="input" value={amount} onChange={e => setAmount(e.target.value)} required />
                 </div>
                 <div style={{flex: 1}}>
                   <label>Tarih</label>
@@ -154,23 +140,15 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className={styles.row}>
-                <div style={{flex: 1}}>
-                  <label>Kategori</label>
-                  <select className="input" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-                  </select>
-                </div>
-                <div style={{flex: 1}}>
-                  <label>Kim Ödedi?</label>
-                  <select className="input" value={paidById} onChange={e => setPaidById(e.target.value)}>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                  </select>
-                </div>
+              <div>
+                <label>Kategori</label>
+                <select className="input" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+                  {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                </select>
               </div>
 
-              <div>
-                <label>Kimler İçin Ödendi?</label>
+              <div style={{ marginTop: '1.5rem' }}>
+                <label>Kim İçin Alındı?</label>
                 <div className={styles.checkboxGroup}>
                   {users.map(u => (
                     <label key={u.id} className={styles.checkboxLabel}>
@@ -191,38 +169,14 @@ export default function Home() {
             </form>
           </div>
 
-          <div className={`glass-panel ${styles.panel} animate-fade-in`} style={{animationDelay: '0.1s'}}>
-            <h2>📊 Özet & Hesaplaşma</h2>
-            <div className={styles.summaryBox}>
-              <div className={styles.totalText}>Toplam Harcama: <strong>{totalSpent.toFixed(2)}</strong></div>
-            </div>
-            
-            <div className={styles.balanceList}>
-              {users.map(u => {
-                const bal = balances[u.id];
-                const isPositive = bal > 0.01;
-                const isNegative = bal < -0.01;
-                return (
-                  <div key={u.id} className={styles.balanceItem}>
-                    <span>{u.name}</span>
-                    <span style={{ 
-                      color: isPositive ? '#10b981' : isNegative ? '#f43f5e' : 'var(--text-muted)',
-                      fontWeight: 'bold'
-                    }}>
-                      {isPositive ? '+' : ''}{bal.toFixed(2)}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-            <p className={styles.balanceNote}>* Artı (+) olanlar alacaklı, eksi (-) olanlar borçludur.</p>
-          </div>
-
         </div>
 
         {/* Right Column: List */}
         <div className={styles.rightCol}>
-          <div className={`glass-panel ${styles.panel} animate-fade-in`} style={{animationDelay: '0.2s'}}>
+          <div className={`glass-panel ${styles.panel} animate-fade-in`} style={{animationDelay: '0.1s'}}>
+            <div className={styles.summaryBox} style={{marginBottom: '1.5rem'}}>
+              <div className={styles.totalText}>Toplam Harcama: <strong>¥ {totalSpent.toFixed(0)}</strong></div>
+            </div>
             <h2>📝 Harcama Geçmişi</h2>
             <div className={styles.expenseList}>
               {expenses.length === 0 ? (
@@ -235,12 +189,12 @@ export default function Home() {
                   <div className={styles.expDetails}>
                     <div className={styles.expHeader}>
                       <span className={styles.expTitle}>{exp.title}</span>
-                      <span className={styles.expAmount}>{exp.amount.toFixed(2)}</span>
+                      <span className={styles.expAmount}>¥ {exp.amount.toFixed(0)}</span>
                     </div>
                     <div className={styles.expMeta}>
                       <span>{new Date(exp.date).toLocaleDateString('tr-TR')}</span>
                       <span>•</span>
-                      <span>{exp.paidBy.name} ödedi</span>
+                      <span>{exp.participants.map(p => p.name).join(', ')} için</span>
                     </div>
                   </div>
                   <button onClick={() => deleteExpense(exp.id)} className={styles.deleteBtn}>✕</button>
