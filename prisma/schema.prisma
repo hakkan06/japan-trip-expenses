@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String    @id @default(cuid())
+  name           String    @unique
+  paidExpenses   Expense[] @relation("PaidBy")
+  participatedIn Expense[] @relation("Participants")
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  color    String?
+  icon     String?
+  expenses Expense[]
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  title       String
+  amount      Float
+  date        DateTime @default(now())
+  
+  paidById    String
+  paidBy      User     @relation("PaidBy", fields: [paidById], references: [id])
+  
+  participants User[]  @relation("Participants")
+  
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id])
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

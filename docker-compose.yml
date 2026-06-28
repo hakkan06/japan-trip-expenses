@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: japan_user
+      POSTGRES_PASSWORD: japan_password
+      POSTGRES_DB: japan_expenses
+    ports:
+      - "5432:5432"

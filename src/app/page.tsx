@@ -1,66 +1,255 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useEffect, useState } from 'react';
+import styles from './page.module.css';
+
+type User = { id: string; name: string };
+type Category = { id: string; name: string; color: string; icon: string };
+type Expense = {
+  id: string;
+  title: string;
+  amount: number;
+  date: string;
+  paidBy: User;
+  category: Category;
+  participants: User[];
+};
 
 export default function Home() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Form states
+  const [title, setTitle] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paidById, setPaidById] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [participantIds, setParticipantIds] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const [uRes, cRes, eRes] = await Promise.all([
+        fetch('/api/users'),
+        fetch('/api/categories'),
+        fetch('/api/expenses')
+      ]);
+      const uData = await uRes.json();
+      const cData = await cRes.json();
+      const eData = await eRes.json();
+
+      setUsers(uData);
+      setCategories(cData);
+      setExpenses(eData);
+      
+      if (uData.length > 0) {
+        setPaidById(uData[0].id);
+        setParticipantIds(uData.map((u: User) => u.id));
+      }
+      if (cData.length > 0) setCategoryId(cData[0].id);
+      
+      setLoading(false);
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !amount || !paidById || !categoryId || participantIds.length === 0) return;
+    setIsSubmitting(true);
+
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          amount,
+          date,
+          paidById,
+          categoryId,
+          participantIds
+        })
+      });
+
+      if (res.ok) {
+        setTitle('');
+        setAmount('');
+        fetchData(); // Refresh list
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const deleteExpense = async (id: string) => {
+    if (!confirm('Bu harcamayı silmek istediğinize emin misiniz?')) return;
+    await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+    fetchData();
+  };
+
+  const toggleParticipant = (id: string) => {
+    setParticipantIds(prev => 
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  };
+
+  // Calculations for Summary
+  const totalSpent = expenses.reduce((sum, exp) => sum + exp.amount, 0);
+  
+  const balances: Record<string, number> = {};
+  users.forEach(u => balances[u.id] = 0);
+  
+  expenses.forEach(exp => {
+    // Person who paid gets positive balance
+    if (balances[exp.paidBy.id] !== undefined) {
+      balances[exp.paidBy.id] += exp.amount;
+    }
+    // Participants share the cost (negative balance)
+    const splitAmount = exp.amount / exp.participants.length;
+    exp.participants.forEach(p => {
+      if (balances[p.id] !== undefined) {
+        balances[p.id] -= splitAmount;
+      }
+    });
+  });
+
+  if (loading) return <div className="container"><p>Yükleniyor...</p></div>;
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="container">
+      <h1 className="title">🎌 Japan Trip Expenses</h1>
+      
+      <div className={styles.grid}>
+        {/* Left Column: Form & Summary */}
+        <div className={styles.leftCol}>
+          
+          <div className={`glass-panel ${styles.panel} animate-fade-in`}>
+            <h2>💸 Yeni Harcama Ekle</h2>
+            <form onSubmit={handleSubmit} className={styles.form}>
+              <div>
+                <label>Başlık</label>
+                <input className="input" value={title} onChange={e => setTitle(e.target.value)} placeholder="Örn: Shinkansen Bileti" required />
+              </div>
+              
+              <div className={styles.row}>
+                <div style={{flex: 1}}>
+                  <label>Tutar (¥/₺)</label>
+                  <input type="number" step="0.01" className="input" value={amount} onChange={e => setAmount(e.target.value)} required />
+                </div>
+                <div style={{flex: 1}}>
+                  <label>Tarih</label>
+                  <input type="date" className="input" value={date} onChange={e => setDate(e.target.value)} required />
+                </div>
+              </div>
+
+              <div className={styles.row}>
+                <div style={{flex: 1}}>
+                  <label>Kategori</label>
+                  <select className="input" value={categoryId} onChange={e => setCategoryId(e.target.value)}>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                  </select>
+                </div>
+                <div style={{flex: 1}}>
+                  <label>Kim Ödedi?</label>
+                  <select className="input" value={paidById} onChange={e => setPaidById(e.target.value)}>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label>Kimler İçin Ödendi?</label>
+                <div className={styles.checkboxGroup}>
+                  {users.map(u => (
+                    <label key={u.id} className={styles.checkboxLabel}>
+                      <input 
+                        type="checkbox" 
+                        checked={participantIds.includes(u.id)}
+                        onChange={() => toggleParticipant(u.id)}
+                      />
+                      <span>{u.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <button type="submit" className="btn" disabled={isSubmitting}>
+                {isSubmitting ? 'Ekleniyor...' : 'Harcama Ekle'}
+              </button>
+            </form>
+          </div>
+
+          <div className={`glass-panel ${styles.panel} animate-fade-in`} style={{animationDelay: '0.1s'}}>
+            <h2>📊 Özet & Hesaplaşma</h2>
+            <div className={styles.summaryBox}>
+              <div className={styles.totalText}>Toplam Harcama: <strong>{totalSpent.toFixed(2)}</strong></div>
+            </div>
+            
+            <div className={styles.balanceList}>
+              {users.map(u => {
+                const bal = balances[u.id];
+                const isPositive = bal > 0.01;
+                const isNegative = bal < -0.01;
+                return (
+                  <div key={u.id} className={styles.balanceItem}>
+                    <span>{u.name}</span>
+                    <span style={{ 
+                      color: isPositive ? '#10b981' : isNegative ? '#f43f5e' : 'var(--text-muted)',
+                      fontWeight: 'bold'
+                    }}>
+                      {isPositive ? '+' : ''}{bal.toFixed(2)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <p className={styles.balanceNote}>* Artı (+) olanlar alacaklı, eksi (-) olanlar borçludur.</p>
+          </div>
+
         </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Right Column: List */}
+        <div className={styles.rightCol}>
+          <div className={`glass-panel ${styles.panel} animate-fade-in`} style={{animationDelay: '0.2s'}}>
+            <h2>📝 Harcama Geçmişi</h2>
+            <div className={styles.expenseList}>
+              {expenses.length === 0 ? (
+                <p className={styles.emptyState}>Henüz harcama eklenmedi.</p>
+              ) : expenses.map(exp => (
+                <div key={exp.id} className={styles.expenseCard}>
+                  <div className={styles.expIcon} style={{backgroundColor: exp.category.color + '40'}}>
+                    {exp.category.icon}
+                  </div>
+                  <div className={styles.expDetails}>
+                    <div className={styles.expHeader}>
+                      <span className={styles.expTitle}>{exp.title}</span>
+                      <span className={styles.expAmount}>{exp.amount.toFixed(2)}</span>
+                    </div>
+                    <div className={styles.expMeta}>
+                      <span>{new Date(exp.date).toLocaleDateString('tr-TR')}</span>
+                      <span>•</span>
+                      <span>{exp.paidBy.name} ödedi</span>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteExpense(exp.id)} className={styles.deleteBtn}>✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

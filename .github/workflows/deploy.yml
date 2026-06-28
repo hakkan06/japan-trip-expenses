@@ -1,0 +1,39 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build-and-deploy:
+    runs-on: [self-hosted, linux]
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          clean: true
+
+      - name: App imajını derle
+        run: |
+          docker build -t japan-app:${{ github.sha }} -t japan-app:latest .
+          # K3s containerd'ye imajı yükle
+          docker save japan-app:${{ github.sha }} japan-app:latest | sudo k3s ctr images import -
+
+      - name: Kubernetes'e deploy et
+        run: |
+          # 1. K8s Configlerini Uygula
+          kubectl apply -f k8s/postgres.yaml
+          kubectl apply -f k8s/app.yaml
+          kubectl apply -f k8s/ingress.yaml
+          
+          # 2. Yeni imajı set et
+          kubectl set image deployment/japan-app-deployment \
+            japan-app=japan-app:${{ github.sha }}
+          
+          # 3. Rollout bekle
+          kubectl rollout status deployment/japan-app-deployment
