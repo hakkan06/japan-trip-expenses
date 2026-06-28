@@ -37,3 +37,15 @@ jobs:
           
           # 3. Rollout bekle
           kubectl rollout status deployment/japan-app-deployment
+          
+      - name: Debug Diagnostics
+        run: |
+          echo "Waiting 10 seconds for pods to crash if they are going to..."
+          sleep 10
+          echo "Pod Statuses:"
+          kubectl get pods -l app=japan-db
+          kubectl get pods -l app=japan-app
+          echo "DB Logs:"
+          kubectl logs deployment/japan-db-deployment --tail=50 || true
+          echo "App Logs:"
+          kubectl logs deployment/japan-app-deployment --tail=50 || true
