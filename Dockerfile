@@ -26,4 +26,4 @@ ENV PORT 3000
 ENV HOSTNAME "0.0.0.0"
 
 # Run migrations and then start Next.js
-CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node server.js"]
